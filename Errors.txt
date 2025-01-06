@@ -1,0 +1,366 @@
+1.
+
+Заменено импрортирование на 
+
+from IServer import *
+from IPasswordEncoder import *
+from AccountManagerResponse import *
+from ServerResponse import *
+
+Так как вместо классов импортировались модули
+
+Так же все константы вида AccountManagerResponse.NOT_LOGGED_RESPONSE заменены на NOT_LOGGED_RESPONSE
+
+
+2.
+
+Добавлено изменение init, так как encoder при инциализации не присваивался из-за чего невозможно было запустить тест,  а так же добавлено обновление при инициализации activeAccounts
+
+def __init__(self, s: IServer, encoder: IPasswordEncoder):
+        self.server = s
+        self.passEncoder = encoder
+        self.activeAccounts = dict[str, int]()
+
+3.
+Код до исправления:
+
+def callLogin(self, login: str, password: str) -> AccountManagerResponse:
+        sess: int = self.activeAccounts.get(login, None)
+        if sess is not None:
+            return ACCOUNT_MANAGER_RESPONSE
+        ret: ServerResponse = self.server.login(login, self.passEncoder.makeSecure(password))
+        match ret.code:
+            case ServerResponse.ALREADY_LOGGED:
+                return ACCOUNT_MANAGER_RESPONSE
+            case ServerResponse.NO_USER_INCORRECT_PASSWORD:
+                return NO_USER_INCORRECT_PASSWORD_RESPONSE
+            case ServerResponse.SUCCESS:
+                resp = ret.response
+                if isinstance(resp, int):
+                    return AccountManagerResponse(AccountManagerResponse.SUCCEED, resp)
+        return AccountManagerResponse(AccountManagerResponse.INCORRECT_RESPONSE, ret)
+
+Данные для которых наблюдается некоректное поведение:
+
+Вызов метода callLogin() после успешного вызова этого же метода ранее
+
+Полученный результат: AccountManagerResponse.SUCCEED
+Ожиадемый результат: AccountManagerResponse.ALREADY_LOGGED
+
+Код после исправления:
+
+    def callLogin(self, login: str, password: str) -> AccountManagerResponse:
+        sess: int = self.activeAccounts.get(login)
+        if sess is not None:
+            return ACCOUNT_MANAGER_RESPONSE
+        ret: ServerResponse = self.server.login(login, self.passEncoder.makeSecure(password))
+        match ret.code:
+            case ServerResponse.ALREADY_LOGGED:
+                return ACCOUNT_MANAGER_RESPONSE
+            case ServerResponse.NO_USER_INCORRECT_PASSWORD:
+                return NO_USER_INCORRECT_PASSWORD_RESPONSE
+            case ServerResponse.SUCCESS:
+                resp = ret.response
+                if isinstance(resp, int):
+                    self.activeAccounts[login] = resp
+                    return AccountManagerResponse(AccountManagerResponse.SUCCEED, resp)
+        return AccountManagerResponse(AccountManagerResponse.INCORRECT_RESPONSE, ret)
+
+4.
+
+Код до исправления:
+
+    def callLogin(self, login: str, password: str) -> AccountManagerResponse:
+        sess: int = self.activeAccounts.get(login)
+        if sess is not None:
+            return ACCOUNT_MANAGER_RESPONSE
+        ret: ServerResponse = self.server.login(login, self.passEncoder.makeSecure(password))
+        match ret.code:
+            case ServerResponse.ALREADY_LOGGED:
+                return ACCOUNT_MANAGER_RESPONSE
+            case ServerResponse.NO_USER_INCORRECT_PASSWORD:
+                return NO_USER_INCORRECT_PASSWORD_RESPONSE
+            case ServerResponse.SUCCESS:
+                resp = ret.response
+                if isinstance(resp, int):
+                    self.activeAccounts[login] = resp
+                    return AccountManagerResponse(AccountManagerResponse.SUCCEED, resp)
+        return AccountManagerResponse(AccountManagerResponse.INCORRECT_RESPONSE, ret)
+
+Данные для которых наблюдается некоректное поведение:
+
+Вызов метода callLogin() с некодируемым паролем
+
+Полученный результат: Ошибка выполнения
+Ожиадемый результат: AccountManagerResponse.ENCODING_ERROR
+
+Код после исправления:
+
+    def callLogin(self, login: str, password: str) -> AccountManagerResponse:
+        sess: int = self.activeAccounts.get(login)
+        if sess is not None:
+            return ACCOUNT_MANAGER_RESPONSE
+        try:
+            passcod = self.passEncoder.makeSecure(password)
+        except NullPointerException:
+            return ENCODING_ERROR_RESPONSE
+        ret: ServerResponse = self.server.login(login, passcod)
+        match ret.code:
+            case ServerResponse.ALREADY_LOGGED:
+                return ACCOUNT_MANAGER_RESPONSE
+            case ServerResponse.NO_USER_INCORRECT_PASSWORD:
+                return NO_USER_INCORRECT_PASSWORD_RESPONSE
+            case ServerResponse.SUCCESS:
+                resp = ret.response
+                if isinstance(resp, int):
+                    self.activeAccounts[login] = resp
+                    return AccountManagerResponse(AccountManagerResponse.SUCCEED, resp)
+        return AccountManagerResponse(AccountManagerResponse.INCORRECT_RESPONSE, ret)
+
+
+5.
+
+Код до исправления:
+
+    def callLogin(self, login: str, password: str) -> AccountManagerResponse:
+        sess: int = self.activeAccounts.get(login)
+        if sess is not None:
+            return ACCOUNT_MANAGER_RESPONSE
+        try:
+            passcod = self.passEncoder.makeSecure(password)
+        except NullPointerException:
+            return ENCODING_ERROR_RESPONSE
+        ret: ServerResponse = self.server.login(login, passcod)
+        match ret.code:
+            case ServerResponse.ALREADY_LOGGED:
+                return ACCOUNT_MANAGER_RESPONSE
+            case ServerResponse.NO_USER_INCORRECT_PASSWORD:
+                return NO_USER_INCORRECT_PASSWORD_RESPONSE
+            case ServerResponse.SUCCESS:
+                resp = ret.response
+                if isinstance(resp, int):
+                    self.activeAccounts[login] = resp
+                    return AccountManagerResponse(AccountManagerResponse.SUCCEED, resp)
+        return AccountManagerResponse(AccountManagerResponse.INCORRECT_RESPONSE, ret)
+
+Данные для которых наблюдается некоректное поведение:
+
+Вызов метода callLogin() с ответом UNDEFINED_ERROR сервера
+
+Полученный результат: AccountManagerResponse.INCORRECT_RESPONSE
+Ожиадемый результат: AccountManagerResponse.UNDEFINED_ERROR
+
+Код после исправления:
+
+
+        sess: int = self.activeAccounts.get(login)
+        if sess is not None:
+            return ACCOUNT_MANAGER_RESPONSE
+        try:
+            passcod = self.passEncoder.makeSecure(password)
+        except NullPointerException:
+            return ENCODING_ERROR_RESPONSE
+        ret: ServerResponse = self.server.login(login, passcod)
+        match ret.code:
+            case ServerResponse.ALREADY_LOGGED:
+                return ACCOUNT_MANAGER_RESPONSE
+            case ServerResponse.NO_USER_INCORRECT_PASSWORD:
+                return NO_USER_INCORRECT_PASSWORD_RESPONSE
+            case ServerResponse.SUCCESS:
+                resp = ret.response
+                if isinstance(resp, int):
+                    self.activeAccounts[login] = resp
+                    return AccountManagerResponse(AccountManagerResponse.SUCCEED, resp)
+        return AccountManagerResponse(AccountManagerResponse.UNDEFINED_ERROR, ret)
+
+6.
+
+Код до исправления:
+
+    def callLogout(self, user: str, session: int) -> AccountManagerResponse:
+        rem: int = self.activeAccounts.pop(user, None)
+        if rem is None:
+            return NOT_LOGGED_RESPONSE
+        resp: ServerResponse = self.server.logout(session)
+        match resp.code:
+            case ServerResponse.NOT_LOGGED:
+                return NOT_LOGGED_RESPONSE
+            case ServerResponse.SUCCESS:
+                return SUCCEED_RESPONSE
+        return AccountManagerResponse(AccountManagerResponse.INCORRECT_RESPONSE, resp)
+
+Данные для которых наблюдается некоректное поведение:
+
+Вызов метода callLogout() с ответом UNDEFINED_ERROR сервера
+
+Полученный результат: AccountManagerResponse.INCORRECT_RESPONSE
+Ожиадемый результат: AccountManagerResponse.UNDEFINED_ERROR
+
+Код после исправления:
+
+
+    def callLogout(self, user: str, session: int) -> AccountManagerResponse:
+        rem: int = self.activeAccounts.pop(user, None)
+        if rem is None:
+            return NOT_LOGGED_RESPONSE
+        resp: ServerResponse = self.server.logout(session)
+        match resp.code:
+            case ServerResponse.NOT_LOGGED:
+                return NOT_LOGGED_RESPONSE
+            case ServerResponse.SUCCESS:
+                return SUCCEED_RESPONSE
+        return AccountManagerResponse(AccountManagerResponse.UNDEFINED_ERROR, resp)
+
+
+7.
+
+Код до исправления:
+
+    def callLogout(self, user: str, session: int) -> AccountManagerResponse:
+        rem: int = self.activeAccounts.pop(user, None)
+        if rem is None:
+            return NOT_LOGGED_RESPONSE
+        resp: ServerResponse = self.server.logout(session)
+        match resp.code:
+            case ServerResponse.NOT_LOGGED:
+                return NOT_LOGGED_RESPONSE
+            case ServerResponse.SUCCESS:
+                return SUCCEED_RESPONSE
+        return AccountManagerResponse(AccountManagerResponse.UNDEFINED_ERROR, resp)
+
+Данные для которых наблюдается некоректное поведение:
+
+Вызов метода callLogout() с неверной сессией
+
+Полученный результат: AccountManagerResponse.UNDEFINED_ERROR
+Ожиадемый результат: AccountManagerResponse.INCORRECT_SESSION
+
+
+8. 
+
+Код до исправления:
+
+
+    def deposit(self, user: str, session: int, amount: float) -> AccountManagerResponse:
+        stored: int = self.activeAccounts.get(user, None)
+        if stored is None:
+            return NOT_LOGGED_RESPONSE
+        if stored != session:
+            return INCORRECT_SESSION_RESPONSE
+        resp: ServerResponse = self.server.deposit(session, amount)
+        match resp.code:
+            case ServerResponse.NOT_LOGGED:
+                return NOT_LOGGED_RESPONSE
+            case ServerResponse.NO_MONEY:
+                r = resp.response
+                if r is not None and (isinstance(r, float)):
+                    return AccountManagerResponse(AccountManagerResponse.NO_MONEY, r)
+            case ServerResponse.SUCCESS:
+                r = resp.response
+                if r is not None and (isinstance(r, float)):
+                    return AccountManagerResponse(AccountManagerResponse.SUCCEED, r)
+        return AccountManagerResponse(AccountManagerResponse.INCORRECT_RESPONSE, resp)
+
+Ошибка: лишний код, согласно требованиям функция не возвращает AccountManagerResponse.NO_MONEY
+
+Код после исправления:
+
+    def deposit(self, user: str, session: int, amount: float) -> AccountManagerResponse:
+        stored: int = self.activeAccounts.get(user, None)
+        if stored is None:
+            return NOT_LOGGED_RESPONSE
+        if stored != session:
+            return INCORRECT_SESSION_RESPONSE
+        resp: ServerResponse = self.server.deposit(session, amount)
+        match resp.code:
+            case ServerResponse.NOT_LOGGED:
+                return NOT_LOGGED_RESPONSE
+            case ServerResponse.SUCCESS:
+                r = resp.response
+                if r is not None and (isinstance(r, float)):
+                    return AccountManagerResponse(AccountManagerResponse.SUCCEED, r)
+        return AccountManagerResponse(AccountManagerResponse.INCORRECT_RESPONSE, resp)
+
+9.
+
+
+Код до исправления:
+
+
+    def deposit(self, user: str, session: int, amount: float) -> AccountManagerResponse:
+        stored: int = self.activeAccounts.get(user, None)
+        if stored is None:
+            return NOT_LOGGED_RESPONSE
+        if stored != session:
+            return INCORRECT_SESSION_RESPONSE
+        resp: ServerResponse = self.server.deposit(session, amount)
+        match resp.code:
+            case ServerResponse.NOT_LOGGED:
+                return NOT_LOGGED_RESPONSE
+            case ServerResponse.SUCCESS:
+                r = resp.response
+                if r is not None and (isinstance(r, float)):
+                    return AccountManagerResponse(AccountManagerResponse.SUCCEED, r)
+        return AccountManagerResponse(AccountManagerResponse.INCORRECT_RESPONSE, resp)
+
+
+Вызов метода deposit() с ответом UNDEFINED_ERROR сервера
+
+Полученный результат: AccountManagerResponse.INCORRECT_RESPONSE
+Ожиадемый результат: AccountManagerResponse.UNDEFINED_ERROR
+
+Та же ошибка содержалась в иных функциях, и была заменена в withdraw и getBalance
+
+Код после исправления:
+
+    def withdraw(self, user: str, session: int, amount: float):
+        stored: int = self.activeAccounts.get(user, None)
+        if stored is None:
+            return NOT_LOGGED_RESPONSE
+        if stored != session:
+            return INCORRECT_SESSION_RESPONSE
+        resp: ServerResponse = self.server.withdraw(session, amount)
+        match resp.code:
+            case ServerResponse.NOT_LOGGED:
+                return NOT_LOGGED_RESPONSE;
+            case ServerResponse.NO_MONEY:
+                r = resp.response
+                if r is not None and (isinstance(r, float)):
+                    return AccountManagerResponse(AccountManagerResponse.NO_MONEY, r)
+            case ServerResponse.SUCCESS:
+                r = resp.response
+                if r is not None and (isinstance(r, float)):
+                    return AccountManagerResponse(AccountManagerResponse.SUCCEED, r)
+        return AccountManagerResponse(AccountManagerResponse.UNDEFINED_ERROR, resp)
+
+    def deposit(self, user: str, session: int, amount: float) -> AccountManagerResponse:
+        stored: int = self.activeAccounts.get(user, None)
+        if stored is None:
+            return NOT_LOGGED_RESPONSE
+        if stored != session:
+            return INCORRECT_SESSION_RESPONSE
+        resp: ServerResponse = self.server.deposit(session, amount)
+        match resp.code:
+            case ServerResponse.NOT_LOGGED:
+                return NOT_LOGGED_RESPONSE
+            case ServerResponse.SUCCESS:
+                r = resp.response
+                if r is not None and (isinstance(r, float)):
+                    return AccountManagerResponse(AccountManagerResponse.SUCCEED, r)
+        return AccountManagerResponse(AccountManagerResponse.UNDEFINED_ERROR, resp)
+
+    def getBalance(self, user: str, session: int) -> AccountManagerResponse:
+        stored: int = self.activeAccounts.get(user, None)
+        if stored is None:
+            return NOT_LOGGED_RESPONSE
+        if stored != session:
+            return INCORRECT_SESSION_RESPONSE
+        resp: ServerResponse = self.server.getBalance(session)
+        match resp.code:
+            case ServerResponse.NOT_LOGGED:
+                return NOT_LOGGED_RESPONSE
+            case ServerResponse.SUCCESS:
+                r = resp.response
+                if r is not None and (isinstance(r, float)):
+                    return AccountManagerResponse(AccountManagerResponse.SUCCEED, r)
+        return AccountManagerResponse(AccountManagerResponse.UNDEFINED_ERROR, resp)
